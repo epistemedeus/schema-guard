@@ -1,0 +1,11 @@
+[
+ "public_url=https://runx.ai/x/epistemedeus/schema-guard@sha-519d004c03f7",
+ "source_url=https://github.com/epistemedeus/schema-guard/tree/27f6eff6ae3168d1fb43efe586d02afabb3bbcbf",
+ "pr_url=https://github.com/runxhq/runx/pull/238",
+ "x_yaml=https://raw.githubusercontent.com/epistemedeus/runx/9c2f23aca50722af760b0e7a5eda1cba1774fc34/skills/schema-guard/X.yaml",
+ "skill_md=https://raw.githubusercontent.com/epistemedeus/runx/9c2f23aca50722af760b0e7a5eda1cba1774fc34/skills/schema-guard/SKILL.md",
+ "evidence_json=https://raw.githubusercontent.com/epistemedeus/schema-guard/164fcad9fd3f08000cf31fc2fbd84c8e84be079f/delivery/evidence.json",
+ "verification_json=https://raw.githubusercontent.com/epistemedeus/schema-guard/164fcad9fd3f08000cf31fc2fbd84c8e84be079f/delivery/verification.json",
+ "receipt_ref=runx:receipt:sha256:092aa5a22343fe685440a75dcdcb7c1d50d5253016ccc81ebe5fa3aa82b2da87",
+ "report=https://raw.githubusercontent.com/epistemedeus/schema-guard/164fcad9fd3f08000cf31fc2fbd84c8e84be079f/delivery/report.md"
+]
