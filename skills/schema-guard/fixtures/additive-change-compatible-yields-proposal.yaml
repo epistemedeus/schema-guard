@@ -27,6 +27,12 @@ expect:
   status: sealed
   receipt:
     schema: runx.receipt.v1
+  output:
+    block: false
+    compatibility:
+      compatible: true
+    publish_schema_proposal:
+      performed_by: schema-publisher
 metadata:
   public_skill: schema-guard
   source_case: additive-change-compatible-yields-proposal

@@ -76,6 +76,8 @@ each is reported with its field path and the policy rule it trips.
 
 The primary output is `schema_guard_result`, with schema `schema.guard.result.v1`:
 
+A compatible (additive) change — proposal emitted:
+
 ```json
 {
   "schema": "schema.guard.result.v1",
@@ -84,22 +86,14 @@ The primary output is `schema_guard_result`, with schema `schema.guard.result.v1
   "block": false,
   "compatibility": {
     "compatible": true,
-    "breaking_changes": [
-      {
-        "field_path": "name",
-        "kind": "field_removed",
-        "old_contract": "required type=string",
-        "new_contract": "(absent)",
-        "policy_rule": "versioning_rule 'additive-only' forbids breaking changes"
-      }
-    ],
+    "breaking_changes": [],
     "breaking_allowed": false,
     "versioning_rule": "additive-only",
     "required_fields": ["id"],
     "policy_violations": []
   },
   "validation_results": [{ "payload_index": 0, "valid": true, "errors": [] }],
-  "migration_notes": ["..."],
+  "migration_notes": ["Additive-only change (1 field(s) added or relaxed); existing consumers remain valid."],
   "publish_schema_proposal": {
     "decision": "proposed",
     "performed_by": "schema-publisher",
@@ -111,12 +105,18 @@ The primary output is `schema_guard_result`, with schema `schema.guard.result.v1
   "summary": {
     "breaking_count": 0,
     "additive_count": 1,
-    "samples_validated": 2,
+    "policy_violation_count": 0,
+    "samples_validated": 1,
     "samples_failed": 0,
     "proposal_status": "proposed"
   }
 }
 ```
+
+A breaking change withholds the proposal: `compatibility.compatible` is `false`,
+`block` is `true`, `publish_schema_proposal` is `null`, `proposal_status` is
+`withheld`, and each breaking change is listed with its `field_path`, `kind`,
+`old_contract`, `new_contract`, and `policy_rule`.
 
 When `output_dir` is provided, the runner also writes `evidence.json` and
 `report.md` inside that directory.

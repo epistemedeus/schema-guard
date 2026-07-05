@@ -62,6 +62,12 @@ harness:
         status: sealed
         receipt:
           schema: runx.receipt.v1
+        output:
+          block: false
+          compatibility:
+            compatible: true
+          publish_schema_proposal:
+            performed_by: schema-publisher
 
     - name: breaking-change-withholds-proposal
       runner: default
@@ -87,6 +93,11 @@ harness:
         status: sealed
         receipt:
           schema: runx.receipt.v1
+        output:
+          block: true
+          compatibility:
+            compatible: false
+          publish_schema_proposal: null
 
     - name: refuses-to-apply-schema
       runner: default

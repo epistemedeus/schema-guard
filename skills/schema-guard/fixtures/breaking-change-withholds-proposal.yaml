@@ -24,6 +24,11 @@ expect:
   status: sealed
   receipt:
     schema: runx.receipt.v1
+  output:
+    block: true
+    compatibility:
+      compatible: false
+    publish_schema_proposal: null
 metadata:
   public_skill: schema-guard
   source_case: breaking-change-withholds-proposal

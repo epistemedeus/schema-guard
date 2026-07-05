@@ -14,6 +14,7 @@ const SCHEMA = "schema.guard.result.v1";
 const SKILL = "schema-guard";
 const VERSION = "0.1.0";
 const PUBLISH_EXECUTOR = "schema-publisher";
+const MAX_DEPTH = 64;
 
 function main() {
   const inputs = readInputs();
@@ -34,11 +35,10 @@ function main() {
   const policy = normalizePolicy(inputs.compatibility_policy);
 
   const { breaking, additive } = diffSchemas(current, proposed, policy);
-  const validationResults = samples.map((p, i) => ({
-    payload_index: i,
-    valid: validatePayload(p, proposed).valid,
-    errors: validatePayload(p, proposed).errors,
-  }));
+  const validationResults = samples.map((p, i) => {
+    const { valid, errors } = validatePayload(p, proposed);
+    return { payload_index: i, valid, errors };
+  });
 
   const packet = buildPacket({ current, proposed, breaking, additive, validationResults, policy });
   writeArtifacts(inputs.output_dir, packet, skillRoot);
@@ -60,9 +60,29 @@ function isTruthy(v) {
   return v === true || v === "true" || v === 1 || v === "1" || v === "yes";
 }
 
+function isPlainObject(v) {
+  return v != null && typeof v === "object" && !Array.isArray(v);
+}
+
+function asObject(v) {
+  return isPlainObject(v) ? v : {};
+}
+
+function propertiesOf(schema) {
+  return isPlainObject(schema.properties) ? schema.properties : {};
+}
+
+function requiredSet(schema) {
+  return new Set(Array.isArray(schema.required) ? schema.required.map(String) : []);
+}
+
+function hasProperties(schema) {
+  return isPlainObject(schema) && isPlainObject(schema.properties);
+}
+
 function requireObject(v, name) {
   const parsed = typeof v === "string" ? tryParse(v) : v;
-  if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
+  if (!isPlainObject(parsed)) {
     throw new Error(`input '${name}' is required and must be a JSON Schema object`);
   }
   return parsed;
@@ -76,12 +96,12 @@ function normalizeSamples(v) {
   if (v == null) return [];
   const parsed = typeof v === "string" ? tryParse(v) : v;
   if (Array.isArray(parsed)) return parsed;
-  if (parsed && typeof parsed === "object") return [parsed];
+  if (isPlainObject(parsed)) return [parsed];
   return [];
 }
 
 function normalizePolicy(v) {
-  const p = (typeof v === "string" ? tryParse(v) : v) || {};
+  const p = asObject(typeof v === "string" ? tryParse(v) : v);
   return {
     breaking_allowed: p.breaking_allowed === true,
     required_fields: Array.isArray(p.required_fields) ? p.required_fields.map(String) : [],
@@ -108,20 +128,20 @@ function policyRuleFor(fieldPath, policy) {
     : `versioning_rule '${policy.versioning_rule}' forbids breaking changes`;
 }
 
-function diffSchemas(current, proposed, policy, prefix = "") {
+function diffSchemas(current, proposed, policy, prefix = "", depth = 0) {
+  if (depth > MAX_DEPTH) throw new Error(`schema nesting exceeds ${MAX_DEPTH} levels`);
   const breaking = [];
   const additive = [];
-  const curProps = current.properties || {};
-  const propProps = proposed.properties || {};
-  const curReq = new Set(current.required || []);
-  const propReq = new Set(proposed.required || []);
+  const curProps = propertiesOf(current);
+  const propProps = propertiesOf(proposed);
+  const curReq = requiredSet(current);
+  const propReq = requiredSet(proposed);
 
   for (const key of Object.keys(curProps)) {
     const fieldPath = prefix ? `${prefix}.${key}` : key;
-    const cur = curProps[key];
-    const prop = propProps[key];
+    const cur = asObject(curProps[key]);
 
-    if (prop === undefined) {
+    if (propProps[key] === undefined) {
       breaking.push({
         field_path: fieldPath,
         kind: "field_removed",
@@ -131,6 +151,7 @@ function diffSchemas(current, proposed, policy, prefix = "") {
       });
       continue;
     }
+    const prop = asObject(propProps[key]);
 
     if (cur.type && prop.type && cur.type !== prop.type && !isWidening(cur.type, prop.type)) {
       breaking.push({
@@ -143,7 +164,8 @@ function diffSchemas(current, proposed, policy, prefix = "") {
     }
 
     if (Array.isArray(cur.enum) && Array.isArray(prop.enum)) {
-      const removed = cur.enum.filter((v) => !prop.enum.includes(v));
+      const propEnum = new Set(prop.enum.map(canonical));
+      const removed = cur.enum.filter((v) => !propEnum.has(canonical(v)));
       if (removed.length > 0) {
         breaking.push({
           field_path: fieldPath,
@@ -167,8 +189,10 @@ function diffSchemas(current, proposed, policy, prefix = "") {
       additive.push({ field_path: fieldPath, kind: "field_made_optional" });
     }
 
-    if (cur.type === "object" && prop.type === "object") {
-      const nested = diffSchemas(cur, prop, policy, fieldPath);
+    // Recurse whenever either side declares nested properties, whether or not a
+    // `type: object` keyword is present (JSON Schema does not require it).
+    if (hasProperties(cur) || hasProperties(prop)) {
+      const nested = diffSchemas(cur, prop, policy, fieldPath, depth + 1);
       breaking.push(...nested.breaking);
       additive.push(...nested.additive);
     }
@@ -177,7 +201,7 @@ function diffSchemas(current, proposed, policy, prefix = "") {
   for (const key of Object.keys(propProps)) {
     if (curProps[key] !== undefined) continue;
     const fieldPath = prefix ? `${prefix}.${key}` : key;
-    const prop = propProps[key];
+    const prop = asObject(propProps[key]);
     if (propReq.has(key) && prop.default === undefined) {
       breaking.push({
         field_path: fieldPath,
@@ -199,33 +223,61 @@ function describeField(field, required) {
   return required ? `required ${t}` : `optional ${t}`;
 }
 
+// A required_fields entry must remain present AND required in the proposed schema.
+// This is checked independently of the breaking list so a required->optional
+// demotion (which is otherwise a widening) still blocks when the field is pinned.
+function requiredFieldViolations(proposed, requiredFields) {
+  const violations = [];
+  for (const fieldPath of requiredFields) {
+    const state = resolveFieldState(proposed, String(fieldPath));
+    if (!state.present || !state.required) violations.push(fieldPath);
+  }
+  return violations;
+}
+
+function resolveFieldState(schema, dottedPath) {
+  const parts = dottedPath.split(".");
+  let node = schema;
+  for (let i = 0; i < parts.length; i++) {
+    const props = propertiesOf(node);
+    const key = parts[i];
+    if (!(key in props)) return { present: false, required: false };
+    if (i === parts.length - 1) {
+      return { present: true, required: requiredSet(node).has(key) };
+    }
+    node = asObject(props[key]);
+  }
+  return { present: false, required: false };
+}
+
 // ---------------------------------------------------------------------------
 // payload validation (minimal, deterministic JSON-Schema subset)
 // ---------------------------------------------------------------------------
 
-function validatePayload(payload, schema, prefix = "") {
+function validatePayload(payload, schema, prefix = "", depth = 0) {
+  if (depth > MAX_DEPTH) throw new Error(`payload nesting exceeds ${MAX_DEPTH} levels`);
   const errors = [];
-  if (payload == null || typeof payload !== "object" || Array.isArray(payload)) {
+  if (!isPlainObject(payload)) {
     return { valid: false, errors: [`${prefix || "payload"} is not an object`] };
   }
-  const props = schema.properties || {};
-  for (const req of schema.required || []) {
+  const props = propertiesOf(schema);
+  for (const req of Array.isArray(schema.required) ? schema.required : []) {
     if (payload[req] === undefined) {
       errors.push(`missing required field '${prefix ? prefix + "." : ""}${req}'`);
     }
   }
   for (const [key, val] of Object.entries(payload)) {
     const spec = props[key];
-    if (!spec) continue;
+    if (!isPlainObject(spec)) continue;
     const fp = prefix ? `${prefix}.${key}` : key;
     if (spec.type && !typeMatches(val, spec.type)) {
       errors.push(`field '${fp}' expected type ${spec.type}, got ${jsonType(val)}`);
     }
-    if (Array.isArray(spec.enum) && !spec.enum.includes(val)) {
+    if (Array.isArray(spec.enum) && !spec.enum.some((e) => canonical(e) === canonical(val))) {
       errors.push(`field '${fp}' value ${JSON.stringify(val)} not in enum ${JSON.stringify(spec.enum)}`);
     }
-    if (spec.type === "object" && val && typeof val === "object") {
-      errors.push(...validatePayload(val, spec, fp).errors);
+    if (hasProperties(spec) && isPlainObject(val)) {
+      errors.push(...validatePayload(val, spec, fp, depth + 1).errors);
     }
   }
   return { valid: errors.length === 0, errors };
@@ -244,7 +296,7 @@ function typeMatches(v, type) {
     case "number": return typeof v === "number";
     case "string": return typeof v === "string";
     case "boolean": return typeof v === "boolean";
-    case "object": return v != null && typeof v === "object" && !Array.isArray(v);
+    case "object": return isPlainObject(v);
     case "array": return Array.isArray(v);
     case "null": return v === null;
     default: return true;
@@ -256,7 +308,7 @@ function typeMatches(v, type) {
 // ---------------------------------------------------------------------------
 
 function buildPacket({ current, proposed, breaking, additive, validationResults, policy }) {
-  const policyViolations = breaking.filter((b) => policy.required_fields.includes(b.field_path));
+  const policyViolations = requiredFieldViolations(proposed, policy.required_fields);
   const sampleFailures = validationResults.filter((r) => !r.valid);
 
   const compatible =
@@ -266,9 +318,10 @@ function buildPacket({ current, proposed, breaking, additive, validationResults,
 
   const migrationNotes = [];
   for (const b of breaking) {
-    migrationNotes.push(
-      `${b.kind} at '${b.field_path}': ${b.old_contract} -> ${b.new_contract}. ${b.policy_rule}.`,
-    );
+    migrationNotes.push(`${b.kind} at '${b.field_path}': ${b.old_contract} -> ${b.new_contract}. ${b.policy_rule}.`);
+  }
+  for (const fp of policyViolations) {
+    migrationNotes.push(`required_fields policy: '${fp}' must remain present and required in the proposed schema, but it is removed or relaxed.`);
   }
   for (const r of sampleFailures) {
     migrationNotes.push(`sample_payloads[${r.payload_index}] fails against the proposed schema: ${r.errors.join("; ")}`);
@@ -300,7 +353,7 @@ function buildPacket({ current, proposed, breaking, additive, validationResults,
       breaking_allowed: policy.breaking_allowed,
       versioning_rule: policy.versioning_rule,
       required_fields: policy.required_fields,
-      policy_violations: policyViolations.map((b) => b.field_path),
+      policy_violations: policyViolations,
     },
     validation_results: validationResults,
     migration_notes: migrationNotes,
@@ -308,6 +361,7 @@ function buildPacket({ current, proposed, breaking, additive, validationResults,
     summary: {
       breaking_count: breaking.length,
       additive_count: additive.length,
+      policy_violation_count: policyViolations.length,
       samples_validated: validationResults.length,
       samples_failed: sampleFailures.length,
       proposal_status: publishProposal ? "proposed" : "withheld",
@@ -321,9 +375,10 @@ function buildPacket({ current, proposed, breaking, additive, validationResults,
       grounded_in_schemas: true,
       proposal_iff_compatible: (publishProposal != null) === compatible,
       breaking_changes_have_field_paths: breaking.every((b) => typeof b.field_path === "string" && b.field_path.length > 0),
+      required_fields_enforced: policyViolations.length === 0 || !compatible,
       no_live_schema_write: true,
       finding_rule:
-        "A breaking change is reported only when the proposed schema removes, narrows, or newly requires a field relative to the current schema; a publish_schema_proposal is emitted only when the change is compatible under the policy; the skill never writes a live schema.",
+        "A breaking change is reported only when the proposed schema removes, narrows, or newly requires a field relative to the current schema; a pinned required_fields entry that is removed or demoted always blocks; a publish_schema_proposal is emitted only when the change is compatible under the policy; the skill never writes a live schema.",
     },
   };
 }
@@ -349,6 +404,7 @@ function renderReport(packet) {
   lines.push(`- Scanner: ${packet.skill} v${packet.version}`);
   lines.push(`- Compatible: ${c.compatible}`);
   lines.push(`- Breaking changes: ${packet.summary.breaking_count}`);
+  lines.push(`- Policy violations: ${packet.summary.policy_violation_count}`);
   lines.push(`- Additive changes: ${packet.summary.additive_count}`);
   lines.push(`- Samples validated: ${packet.summary.samples_validated} (failed: ${packet.summary.samples_failed})`);
   lines.push(`- Proposal: ${packet.summary.proposal_status}`);
@@ -374,6 +430,7 @@ function renderReport(packet) {
   lines.push("## Guarantees");
   lines.push("");
   lines.push("- Breaking changes are grounded only in the current vs proposed schema diff.");
+  lines.push("- A pinned required_fields entry that is removed or demoted always blocks.");
   lines.push("- A publish_schema_proposal is emitted only when the change is compatible under the policy.");
   lines.push(`- The proposal is gated: performed_by=${PUBLISH_EXECUTOR}, requires_approval=true.`);
   lines.push("- schema-guard writes no live schema; publishing is the gated executor's effect.");
@@ -393,11 +450,12 @@ function ensureInside(root, resolved, label) {
 }
 
 // Deterministic key-sorted serialization so a schema digest is stable regardless
-// of key order.
+// of key order. undefined is normalized to null to keep the string well-formed.
 function canonical(value) {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (value === undefined || value === null) return "null";
+  if (typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  const keys = Object.keys(value).sort();
+  const keys = Object.keys(value).filter((k) => value[k] !== undefined).sort();
   return `{${keys.map((k) => `${JSON.stringify(k)}:${canonical(value[k])}`).join(",")}}`;
 }
 
