@@ -1,0 +1,5 @@
+node_modules/
+*.log
+artifact-config.json
+skills/schema-guard/artifacts/
+delivery/_ready/claim_body.json
