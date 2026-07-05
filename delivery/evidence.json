@@ -1,0 +1,70 @@
+{
+  "schema": "schema.guard.bounty.evidence.v1",
+  "summary": "schema-guard is a published, installable runx skill (epistemedeus/schema-guard@sha-519d004c03f7) that checks a proposed JSON Schema against the current one for breaking changes, validates sample payloads, and emits a gated publish_schema_proposal for the schema-publisher executor only when the change is compatible — never writing a live schema. Local harness passed 3/3; the post-publish dogfood sealed receipt runx:receipt:sha256:092aa5a22343fe685440a75dcdcb7c1d50d5253016ccc81ebe5fa3aa82b2da87 with compatible=false (block=true), and runx verify returned valid.",
+  "bounty": "Frantic #84 — runx skill: schema-guard ($9)",
+  "package": {
+    "owner": "epistemedeus",
+    "name": "schema-guard",
+    "version": "0.1.0",
+    "registry_ref": "epistemedeus/schema-guard@sha-519d004c03f7"
+  },
+  "artifacts": {
+    "public_url": "https://runx.ai/x/epistemedeus/schema-guard@sha-519d004c03f7",
+    "source_url": "https://github.com/epistemedeus/schema-guard/tree/27f6eff6ae3168d1fb43efe586d02afabb3bbcbf",
+    "pr_url": "https://github.com/runxhq/runx/pull/238",
+    "x_yaml": "https://raw.githubusercontent.com/epistemedeus/runx/9c2f23aca50722af760b0e7a5eda1cba1774fc34/skills/schema-guard/X.yaml",
+    "skill_md": "https://raw.githubusercontent.com/epistemedeus/runx/9c2f23aca50722af760b0e7a5eda1cba1774fc34/skills/schema-guard/SKILL.md",
+    "receipt_ref": "runx:receipt:sha256:092aa5a22343fe685440a75dcdcb7c1d50d5253016ccc81ebe5fa3aa82b2da87"
+  },
+  "observations": [
+    "runx CLI version: runx-cli 0.6.14 (publish, install, dogfood, and verify were all run with this binary).",
+    "Publisher owner: epistemedeus. Package name: schema-guard (exact). Version: 0.1.0.",
+    "Registry ref: epistemedeus/schema-guard@sha-519d004c03f7. Public adoption page (public_url): https://runx.ai/x/epistemedeus/schema-guard@sha-519d004c03f7.",
+    "Source/provenance (source_url): https://github.com/epistemedeus/schema-guard/tree/27f6eff6ae3168d1fb43efe586d02afabb3bbcbf.",
+    "Pull request against runxhq/runx (pr_url): https://github.com/runxhq/runx/pull/238. Head commit: 9c2f23aca50722af760b0e7a5eda1cba1774fc34.",
+    "Raw X.yaml from the PR head commit: https://raw.githubusercontent.com/epistemedeus/runx/9c2f23aca50722af760b0e7a5eda1cba1774fc34/skills/schema-guard/X.yaml.",
+    "Raw SKILL.md from the PR head commit: https://raw.githubusercontent.com/epistemedeus/runx/9c2f23aca50722af760b0e7a5eda1cba1774fc34/skills/schema-guard/SKILL.md.",
+    "Publish method: runx login --provider github --for publish; runx registry publish ./skills/schema-guard/SKILL.md --registry https://api.runx.ai.",
+    "Install command: runx add epistemedeus/schema-guard@sha-519d004c03f7 --registry https://api.runx.ai.",
+    "Local harness (pre-publish): status=passed (3/3, 0 assertion errors, with packet assertions), cases=[additive-change-compatible-yields-proposal:sealed, breaking-change-withholds-proposal:sealed, refuses-to-apply-schema:failure].",
+    "Hosted registry harness (post-publish): green — the registry publish gate ran the hosted harness including the refuses-to-apply-schema stop case.",
+    "Dogfood command: runx skill epistemedeus/schema-guard@sha-519d004c03f7 --registry https://api.runx.ai --input-json current_schema='...' --input-json proposed_schema='...' --input-json sample_payloads='...' --input-json compatibility_policy='...' --receipt-dir <dir> -j.",
+    "Dogfood receipt_ref (post-publish run of epistemedeus/schema-guard@sha-519d004c03f7, not a harness fixture seal): runx:receipt:sha256:092aa5a22343fe685440a75dcdcb7c1d50d5253016ccc81ebe5fa3aa82b2da87.",
+    "runx verify verdict on the dogfood receipt: valid.",
+    "Compatibility status on the dogfood input: compatible=false, block=true, proposal_status=withheld.",
+    "Breaking changes detected: id: type_changed (integer->string); name: field_removed.",
+    "Sample validation_results: 1 sample validated, 1 failed against the proposed schema.",
+    "The publish_schema_proposal is gated: performed_by=schema-publisher, requires_approval=true; schema-guard writes no live schema.",
+    "Compatible harness case 'additive-change-compatible-yields-proposal' seals with a proposal; the breaking case withholds the proposal; the apply case is the governed stop.",
+    "New-user path: install with 'runx add epistemedeus/schema-guard@sha-519d004c03f7 --registry https://api.runx.ai', run 'runx skill epistemedeus/schema-guard@sha-519d004c03f7 --registry https://api.runx.ai --input-json current_schema='...' --input-json proposed_schema='...' --input-json sample_payloads='...' --input-json compatibility_policy='...' --receipt-dir <dir> -j', and verify the sealed receipt with 'runx verify --receipt receipt.json --json'. verification.json records the public key so verification needs no private context."
+  ],
+  "dogfood": {
+    "package": "epistemedeus/schema-guard@sha-519d004c03f7",
+    "input": "current_schema requires {id:int, name:string}; proposed_schema drops 'name' and retypes id to string; policy pins required_fields [id, name]",
+    "command": "runx skill epistemedeus/schema-guard@sha-519d004c03f7 --registry https://api.runx.ai --input-json current_schema='...' --input-json proposed_schema='...' --input-json sample_payloads='...' --input-json compatibility_policy='...' --receipt-dir <dir> -j",
+    "receipt_ref": "runx:receipt:sha256:092aa5a22343fe685440a75dcdcb7c1d50d5253016ccc81ebe5fa3aa82b2da87",
+    "verify_verdict": "valid",
+    "compatible": false,
+    "block": true,
+    "proposal_status": "withheld",
+    "breaking_changes": [
+      "id: type_changed (integer->string)",
+      "name: field_removed"
+    ],
+    "harness_cases": [
+      {
+        "name": "additive-change-compatible-yields-proposal",
+        "status": "sealed"
+      },
+      {
+        "name": "breaking-change-withholds-proposal",
+        "status": "sealed"
+      },
+      {
+        "name": "refuses-to-apply-schema",
+        "status": "failure"
+      }
+    ]
+  },
+  "runx_version": "runx-cli 0.6.14"
+}

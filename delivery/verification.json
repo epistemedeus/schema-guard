@@ -1,0 +1,12 @@
+{
+  "schema": "schema.guard.bounty.verification.v1",
+  "summary": "schema-guard is a published, installable runx skill (epistemedeus/schema-guard@sha-519d004c03f7) that checks a proposed JSON Schema against the current one for breaking changes, validates sample payloads, and emits a gated publish_schema_proposal for the schema-publisher executor only when the change is compatible — never writing a live schema. Local harness passed 3/3; the post-publish dogfood sealed receipt runx:receipt:sha256:092aa5a22343fe685440a75dcdcb7c1d50d5253016ccc81ebe5fa3aa82b2da87 with compatible=false (block=true), and runx verify returned valid.",
+  "receipt_ref": "runx:receipt:sha256:092aa5a22343fe685440a75dcdcb7c1d50d5253016ccc81ebe5fa3aa82b2da87",
+  "verify_command": "runx verify --receipt receipt.json --json",
+  "verify_verdict": "valid",
+  "signature_alg": "Ed25519",
+  "issuer_kid": "epistemedeus-secret-catcher",
+  "public_key_base64": "WsDXUw1Os7UbLMG+qDfsbTAysd30qEeXfZsgNyzVFTc=",
+  "public_key_sha256": "sha256:18e9fc9d42e79bcd357619f3584aca31ae2963d313e6dcbec5b5d0a9620075af",
+  "note": "Public key only — no secret. Anyone can verify the sealed dogfood receipt with the command above."
+}
